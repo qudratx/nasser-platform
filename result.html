@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>النتيجة</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 700px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 15px 40px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+    }
+
+    .top {
+      background: #0f172a;
+      color: white;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .top h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    .top p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 15px;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .stat-title {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      color: #0f172a;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .percent-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 16px;
+      padding: 22px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .percent-label {
+      color: #1d4ed8;
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .percent-value {
+      font-size: 38px;
+      font-weight: bold;
+      color: #0f172a;
+      display: none;
+    }
+
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      padding: 15px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+      margin-top: 12px;
+    }
+
+    .btn-primary {
+      background: #0f172a;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #1e293b;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+
+    .message {
+      text-align: center;
+      font-size: 18px;
+      color: #334155;
+      padding: 20px 0;
+    }
+
+    .code-badge {
+      display: inline-block;
+      background: #e2e8f0;
+      color: #0f172a;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+
+    @media (max-width: 640px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .top h1 {
+        font-size: 24px;
+      }
+
+      .percent-value {
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="top">
+      <h1>نتيجتك النهائية</h1>
+      <p>عرض نتيجة اختبار القدرات</p>
+      <div class="code-badge" id="codeBadge">الكود: ...</div>
+    </div>
+
+    <div class="content" id="app">
+      جاري تحميل النتيجة...
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCzNLmMzJy2pf-3ASVQlKV0K13aTxDZ2lk",
+      authDomain: "qdratx.firebaseapp.com",
+      projectId: "qdratx",
+      storageBucket: "qdratx.firebasestorage.app",
+      messagingSenderId: "753681537334",
+      appId: "1:753681537334:web:4846e5d457fd658f56bb97",
+      measurementId: "G-W9MW1EP4X5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const appEl = document.getElementById("app");
+    const codeBadge = document.getElementById("codeBadge");
+
+    const code = localStorage.getItem("examCode");
+
+    if (!code) {
+      codeBadge.innerText = "لا يوجد كود";
+      appEl.innerHTML = `<div class="message">🚫 لازم تدخل كود أول</div>`;
+      throw new Error("No code");
+    }
+
+    codeBadge.innerText = "الكود: " + code;
+
+    async function loadResult() {
+      try {
+        const ref = doc(db, "codes", code);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+          localStorage.removeItem("examCode");
+          localStorage.removeItem("examStatus");
+          localStorage.removeItem("finalScore");
+          localStorage.removeItem("finalTotal");
+          localStorage.removeItem("finalPercent");
+
+          appEl.innerHTML = `<div class="message">❌ الكود غير موجود</div>`;
+          throw new Error("Invalid code");
+        }
+
+        const data = snap.data();
+
+        if (data.finished !== true) {
+          appEl.innerHTML = `<div class="message">⚠️ لم يتم إنهاء الاختبار بهذا الكود بعد</div>`;
+          throw new Error("Exam not finished yet");
+        }
+
+        const score = Number(data.score ?? 0);
+        const total = Number(data.totalQuestions ?? 0);
+        const percentage = Number(
+          data.percent ?? Math.round((score / (total || 1)) * 100)
+        );
+
+        localStorage.setItem("finalScore", score);
+        localStorage.setItem("finalTotal", total);
+        localStorage.setItem("finalPercent", percentage);
+        localStorage.setItem("examStatus", "finished");
+
+        appEl.innerHTML = `
+          <div class="stats">
+            <div class="stat-box">
+              <div class="stat-title">الدرجة</div>
+              <div class="stat-value">${score}</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-title">إجمالي الأسئلة</div>
+              <div class="stat-value">${total}</div>
+            </div>
+
+            <div class="stat-box">
+              <div class="stat-title">الإجابات الصحيحة</div>
+              <div class="stat-value">${score} / ${total}</div>
+            </div>
+          </div>
+
+          <div class="percent-box">
+            <div class="percent-label">النسبة المئوية</div>
+            <div class="percent-value" id="percentValue">${percentage}%</div>
+            <button class="btn btn-primary" id="showPercentBtn">عرض النسبة 📊</button>
+          </div>
+
+          <button class="btn btn-secondary" id="backBtn">العودة للرئيسية</button>
+        `;
+
+        const percentValue = document.getElementById("percentValue");
+        const showPercentBtn = document.getElementById("showPercentBtn");
+        const backBtn = document.getElementById("backBtn");
+
+        showPercentBtn.onclick = () => {
+          percentValue.style.display = "block";
+          showPercentBtn.style.display = "none";
+        };
+
+        backBtn.onclick = () => {
+          window.location.href = "index.html";
+        };
+
+      } catch (error) {
+        console.error("Result page error:", error);
+      }
+    }
+
+    loadResult();
+  </script>
+
+</body>
+</html>

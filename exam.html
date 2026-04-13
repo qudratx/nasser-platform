@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>اختبار القدرات</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      background: #f1f5f9;
+      min-height: 100vh;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      color: white;
+      padding: 15px 25px;
+      font-size: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+    }
+
+    .progress {
+      height: 6px;
+      background: #22c55e;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 50px auto;
+      background: white;
+      padding: 35px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .question {
+      font-size: 24px;
+      line-height: 1.8;
+      text-align: center;
+      margin-bottom: 30px;
+      color: #0f172a;
+      font-weight: bold;
+    }
+
+    .question-image {
+      max-width: 100%;
+      max-height: 420px;
+      border-radius: 14px;
+      display: block;
+      margin: 0 auto 18px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    #answers {
+      display: grid;
+      gap: 14px;
+    }
+
+    .option {
+      border: 2px solid #e5e7eb;
+      background: #ffffff;
+      padding: 16px 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 17px;
+      color: #111827;
+    }
+
+    .option:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .option::before {
+      content: attr(data-letter);
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .selected::before {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn {
+      margin-top: 28px;
+      padding: 15px;
+      width: 100%;
+      background: #0f172a;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      background: #1e293b;
+    }
+
+    .loading {
+      text-align: center;
+      color: #475569;
+      font-size: 18px;
+      padding: 40px 0;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        margin: 20px 12px;
+        padding: 20px;
+      }
+
+      .question {
+        font-size: 20px;
+      }
+
+      .top-bar {
+        font-size: 14px;
+        padding: 12px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div id="timer">⏱ 25:00</div>
+    <div id="counter">جارٍ التحميل...</div>
+  </div>
+
+  <div class="progress-container">
+    <div id="progress" class="progress"></div>
+  </div>
+
+  <div class="container">
+    <div id="question" class="question">
+      <div class="loading">جارٍ تحميل الأسئلة...</div>
+    </div>
+    <div id="answers"></div>
+    <button id="nextBtn" class="btn" style="display:none;">التالي ⏭</button>
+  </div>
+
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import {
+    getFirestore,
+    doc,
+    getDoc,
+    collection,
+    getDocs,
+    query,
+    where,
+    updateDoc,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCzNLmMzJy2pf-3ASVQlKV0K13aTxDZ2lk",
+    authDomain: "qdratx.firebaseapp.com",
+    projectId: "qdratx",
+    storageBucket: "qdratx.firebasestorage.app",
+    messagingSenderId: "753681537334",
+    appId: "1:753681537334:web:4846e5d457fd658f56bb97",
+    measurementId: "G-W9MW1EP4X5"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const code = localStorage.getItem("examCode");
+
+  if (!code) {
+    window.location.href = "index.html";
+    throw new Error("لا يوجد كود");
+  }
+
+  const codeRef = doc(db, "codes", code);
+
+  const questionEl = document.getElementById("question");
+  const counterEl = document.getElementById("counter");
+  const progressEl = document.getElementById("progress");
+  const answersDiv = document.getElementById("answers");
+  const nextBtn = document.getElementById("nextBtn");
+  const timerEl = document.getElementById("timer");
+
+  if (!questionEl || !counterEl || !progressEl || !answersDiv || !nextBtn || !timerEl) {
+    document.body.innerHTML = "❌ في عناصر ناقصة في HTML";
+    throw new Error("Missing HTML elements");
+  }
+
+  let sections = [];
+  let sectionIndex = 0;
+  let questionIndex = 0;
+  let score = 0;
+  let selected = null;
+  let totalQuestions = 0;
+  let timer = null;
+  let time = 24 * 60;
+  let selectedAnswers = {};
+  let examStarted = false;
+
+  function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+ function normalizeQuestion(docData, docId) {
+  return {
+    id: docId,
+    type: docData.type ?? "",
+    subtype: docData.subtype ?? "",
+    question: docData.question ?? "",
+    choices: Array.isArray(docData.choices)
+      ? docData.choices
+      : Array.isArray(docData.options)
+      ? docData.options
+      : [],
+    correctIndex:
+      typeof docData.correctIndex === "number"
+        ? docData.correctIndex
+        : Number(docData.answer ?? 0),
+    hasImage: Boolean(docData.hasImage),
+    image: docData.image ?? "",
+    difficulty: docData.difficulty ?? "",
+    active: Boolean(docData.active ?? docData.isActive)
+  };
+}
+
+  async function fetchQuestionBank() {
+  const q = query(collection(db, "questions"), where("active", "==", true));
+  const snapshot = await getDocs(q);
+
+  const allQuestions = snapshot.docs.map(d => normalizeQuestion(d.data(), d.id));
+
+  const validQuestions = allQuestions.filter(q =>
+    q &&
+    q.question &&
+    Array.isArray(q.choices) &&
+    q.choices.length === 4
+  );
+
+  const quantitativeRaw = validQuestions.filter(q => q.type === "كمي");
+  const verbalRaw = validQuestions.filter(q => q.type === "لفظي");
+
+  const quantitative = dedupeQuestions(quantitativeRaw);
+  const verbal = dedupeQuestions(verbalRaw);
+
+  console.log("كمي قبل إزالة التكرار:", quantitativeRaw.length);
+  console.log("كمي بعد إزالة التكرار:", quantitative.length);
+  console.log("لفظي قبل إزالة التكرار:", verbalRaw.length);
+  console.log("لفظي بعد إزالة التكرار:", verbal.length);
+
+  return { quantitative, verbal };
+}
+  function buildSections(quantitative, verbal) {
+  const analogy = verbal.filter(q => q.subtype === "تناظر");
+  const contextualError = verbal.filter(q => q.subtype === "خطأ سياقي");
+  const sentenceCompletion = verbal.filter(q => q.subtype === "إكمال الجمل");
+
+  if (quantitative.length < 48) {
+    throw new Error(`الأسئلة الكمية الفريدة غير كافية. المطلوب 48 والمتوفر ${quantitative.length}`);
+  }
+
+  if (analogy.length < 16) {
+    throw new Error(`أسئلة التناظر الفريدة غير كافية. المطلوب 16 والمتوفر ${analogy.length}`);
+  }
+
+  if (contextualError.length < 16) {
+    throw new Error(`أسئلة الخطأ السياقي الفريدة غير كافية. المطلوب 16 والمتوفر ${contextualError.length}`);
+  }
+
+  if (sentenceCompletion.length < 16) {
+    throw new Error(`أسئلة إكمال الجمل الفريدة غير كافية. المطلوب 16 والمتوفر ${sentenceCompletion.length}`);
+  }
+
+  const quantPool = shuffleArray(quantitative).slice(0, 48);
+  const analogyPool = shuffleArray(analogy).slice(0, 16);
+  const contextualErrorPool = shuffleArray(contextualError).slice(0, 16);
+  const sentenceCompletionPool = shuffleArray(sentenceCompletion).slice(0, 16);
+
+  const verbalPool = shuffleArray([
+    ...analogyPool,
+    ...contextualErrorPool,
+    ...sentenceCompletionPool
+  ]);
+
+  const usedIds = new Set();
+  const generated = [];
+
+  for (let i = 0; i < 4; i++) {
+    const quantQuestions = quantPool.slice(i * 12, (i + 1) * 12);
+    const verbalQuestions = verbalPool.slice(i * 12, (i + 1) * 12);
+
+    const combined = shuffleArray([...quantQuestions, ...verbalQuestions]).filter(q => {
+      if (usedIds.has(q.id)) return false;
+      usedIds.add(q.id);
+      return true;
+    });
+
+    if (combined.length !== 24) {
+      throw new Error(`حدث نقص أو تكرار غير متوقع في ${i + 1}. عدد الأسئلة = ${combined.length}`);
+    }
+
+    generated.push({
+      name: `القسم ${i + 1}`,
+      questions: combined
+    });
+  }
+
+  return generated;
+}
+
+
+  function getOverallQuestionNumber() {
+    let count = 0;
+    for (let i = 0; i < sectionIndex; i++) {
+      count += sections[i].questions.length;
+    }
+    count += questionIndex + 1;
+    return count;
+  }
+
+  function updateTimerDisplay() {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60;
+    timerEl.innerText = `⏱ ${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }
+
+  function renderQuestionContent(q, sectionName) {
+    if (q.hasImage && q.image) {
+      const questionText = q.question
+        ? `<div style="margin-bottom:16px;">${sectionName} - ${q.question}</div>`
+        : `<div style="margin-bottom:16px;">${sectionName}</div>`;
+
+      questionEl.innerHTML = `
+        ${questionText}
+        <img src="${q.image}" alt="صورة السؤال" class="question-image">
+      `;
+    } else {
+      questionEl.innerText = `${sectionName} - ${q.question}`;
+    }
+  }
+
+  function updateButton() {
+    if (questionIndex === sections[sectionIndex].questions.length - 1) {
+      if (sectionIndex === sections.length - 1) {
+        nextBtn.innerText = "إنهاء الاختبار 🎉";
+      } else {
+        nextBtn.innerText = "الانتقال للقسم التالي ➡️";
+      }
+    } else {
+      nextBtn.innerText = "التالي ⏭";
+    }
+  }
+
+  function loadQuestion() {
+    selected = null;
+
+    const section = sections[sectionIndex];
+    const q = section.questions[questionIndex];
+    const letters = ["A", "B", "C", "D"];
+
+    renderQuestionContent(q, section.name);
+
+    counterEl.innerText = `${section.name} | السؤال ${getOverallQuestionNumber()} من ${totalQuestions}`;
+    progressEl.style.width = (getOverallQuestionNumber() / totalQuestions) * 100 + "%";
+
+    answersDiv.innerHTML = "";
+
+    q.choices.forEach((ans, i) => {
+      const div = document.createElement("div");
+      div.className = "option";
+      div.setAttribute("data-letter", letters[i] || "");
+      div.innerText = ans;
+
+      if (selectedAnswers[q.id] === i) {
+        div.classList.add("selected");
+        selected = i;
+      }
+
+      div.onclick = () => {
+        selected = i;
+        document.querySelectorAll(".option").forEach(o => o.classList.remove("selected"));
+        div.classList.add("selected");
+      };
+
+      answersDiv.appendChild(div);
+    });
+
+    updateButton();
+  }
+
+  function startTimer() {
+    clearInterval(timer);
+
+    timer = setInterval(async () => {
+      time--;
+      updateTimerDisplay();
+
+      if (time <= 0) {
+        clearInterval(timer);
+
+        if (sectionIndex === sections.length - 1) {
+          await finishExam();
+          return;
+        }
+
+        alert(`انتهى وقت ${sections[sectionIndex].name}، سيتم الانتقال للقسم التالي`);
+
+        sectionIndex++;
+        questionIndex = 0;
+        time = 24 * 60;
+        await saveProgress();
+        loadQuestion();
+        startTimer();
+      }
+    }, 1000);
+  }
+
+  async function saveProgress() {
+    try {
+      await updateDoc(codeRef, {
+        used: true,
+        started: true,
+        finished: false,
+        score: score,
+        totalQuestions: totalQuestions,
+        sectionIndex: sectionIndex,
+        questionIndex: questionIndex,
+        timeLeft: time,
+        selectedAnswers: selectedAnswers,
+        sections: sections,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("خطأ أثناء حفظ التقدم:", error);
+    }
+  }
+
+  async function startNewExam() {
+    const { quantitative, verbal } = await fetchQuestionBank();
+
+    sections = buildSections(quantitative, verbal);
+    totalQuestions = sections.reduce((sum, sec) => sum + sec.questions.length, 0);
+    sectionIndex = 0;
+    questionIndex = 0;
+    score = 0;
+    time = 24 * 60;
+    selectedAnswers = {};
+    examStarted = true;
+
+    await updateDoc(codeRef, {
+      used: true,
+      started: true,
+      finished: false,
+      startedAt: serverTimestamp(),
+      score: 0,
+      totalQuestions: totalQuestions,
+      sectionIndex: 0,
+      questionIndex: 0,
+      timeLeft: time,
+      selectedAnswers: {},
+      sections: sections,
+      updatedAt: serverTimestamp()
+    });
+  }
+function normalizeText(text) {
+  return String(text ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي");
+}
+
+function buildQuestionKey(q) {
+  const choicesKey = Array.isArray(q.choices)
+    ? q.choices.map(choice => normalizeText(choice)).join("||")
+    : "";
+
+  return [
+    normalizeText(q.type),
+    normalizeText(q.subtype),
+    normalizeText(q.question),
+    choicesKey,
+    normalizeText(q.image)
+  ].join("###");
+}
+
+function dedupeQuestions(questions) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const q of questions) {
+    const key = buildQuestionKey(q);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(q);
+  }
+
+  return unique;
+}
+  function restoreExamFromFirebase(data) {
+    sections = Array.isArray(data.sections) ? data.sections : [];
+    sectionIndex = Number(data.sectionIndex ?? 0);
+    questionIndex = Number(data.questionIndex ?? 0);
+    score = Number(data.score ?? 0);
+    totalQuestions = Number(data.totalQuestions ?? 0);
+    time = Number(data.timeLeft ?? 24 * 60);
+    selectedAnswers = data.selectedAnswers ?? {};
+    examStarted = true;
+
+    if (!sections.length || !totalQuestions) {
+      throw new Error("بيانات الاختبار المحفوظة غير مكتملة");
+    }
+  }
+
+  async function finishExam() {
+    clearInterval(timer);
+
+    const percent = Math.round((score / totalQuestions) * 100);
+
+    localStorage.setItem("finalScore", score);
+    localStorage.setItem("finalTotal", totalQuestions);
+    localStorage.setItem("finalPercent", percent);
+
+    await updateDoc(codeRef, {
+      used: true,
+      started: true,
+      finished: true,
+      finishedAt: serverTimestamp(),
+      score: score,
+      totalQuestions: totalQuestions,
+      percent: percent,
+      selectedAnswers: selectedAnswers,
+      timeLeft: 0,
+      updatedAt: serverTimestamp()
+    });
+
+    localStorage.setItem("examStatus", "finished");
+    window.location.href = "result.html";
+  }
+
+  nextBtn.onclick = async () => {
+    if (selected === null) {
+      alert("اختر إجابة أولاً");
+      return;
+    }
+
+    const currentQuestion = sections[sectionIndex].questions[questionIndex];
+    const oldAnswer = selectedAnswers[currentQuestion.id];
+
+    if (oldAnswer !== currentQuestion.correctIndex && selected === currentQuestion.correctIndex) {
+      score++;
+    }
+
+    if (oldAnswer === currentQuestion.correctIndex && selected !== currentQuestion.correctIndex) {
+      score--;
+    }
+
+    selectedAnswers[currentQuestion.id] = selected;
+
+    if (questionIndex === sections[sectionIndex].questions.length - 1) {
+      if (sectionIndex === sections.length - 1) {
+        await saveProgress();
+        await finishExam();
+        return;
+      }
+
+      sectionIndex++;
+      questionIndex = 0;
+      time = 24 * 60;
+    } else {
+      questionIndex++;
+    }
+
+    await saveProgress();
+    loadQuestion();
+    startTimer();
+  };
+
+  async function initExam() {
+    try {
+      const codeSnap = await getDoc(codeRef);
+
+      if (!codeSnap.exists()) {
+        localStorage.removeItem("examCode");
+        localStorage.removeItem("examStatus");
+        window.location.href = "index.html";
+        throw new Error("الكود غير موجود");
+      }
+
+      const codeData = codeSnap.data();
+
+      if (codeData.finished === true) {
+        localStorage.setItem("examStatus", "finished");
+        window.location.href = "result.html";
+        return;
+      }
+
+      if (codeData.started === true && codeData.finished !== true) {
+        restoreExamFromFirebase(codeData);
+      } else if (codeData.used === true && codeData.started !== true) {
+        localStorage.removeItem("examCode");
+        localStorage.removeItem("examStatus");
+        window.location.href = "index.html";
+        throw new Error("الكود مستخدم مسبقًا");
+      } else {
+        await startNewExam();
+      }
+
+      nextBtn.style.display = "block";
+      updateTimerDisplay();
+      loadQuestion();
+      startTimer();
+    } catch (error) {
+      console.error(error);
+      questionEl.innerHTML = `<div class="loading">❌ ${error.message}</div>`;
+      answersDiv.innerHTML = "";
+      nextBtn.style.display = "none";
+      counterEl.innerText = "تعذر تحميل الاختبار";
+    }
+  }
+
+  await initExam();
+</script>
+</body>
+</html>
